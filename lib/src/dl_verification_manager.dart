@@ -27,7 +27,8 @@ class DLVerificationManager {
     final String groupId = 'group-${DateTime.now().millisecondsSinceEpoch}';
 
     final response = await http.post(
-      Uri.parse('https://eve.idfy.com/v3/tasks/async/extract/ind_driving_license'),
+      Uri.parse(
+          'https://eve.idfy.com/v3/tasks/async/extract/ind_driving_license'),
       headers: {
         'Content-Type': 'application/json',
         'api-key': apiKey,
@@ -51,7 +52,8 @@ class DLVerificationManager {
 
   /// Fetches data for an extraction request.
   Future<Map<String, dynamic>> _fetchData(String requestId) async {
-    final url = Uri.parse('https://eve.idfy.com/v3/tasks?request_id=$requestId');
+    final url =
+        Uri.parse('https://eve.idfy.com/v3/tasks?request_id=$requestId');
 
     while (true) {
       final response = await http.get(
@@ -89,7 +91,8 @@ class DLVerificationManager {
     final String groupId = 'group-${DateTime.now().millisecondsSinceEpoch}';
 
     final response = await http.post(
-      Uri.parse('https://eve.idfy.com/v3/tasks/async/verify_with_source/ind_driving_license'),
+      Uri.parse(
+          'https://eve.idfy.com/v3/tasks/async/verify_with_source/ind_driving_license'),
       headers: {
         'Content-Type': 'application/json',
         'api-key': apiKey,
@@ -116,8 +119,10 @@ class DLVerificationManager {
   }
 
   /// Fetches data for a verification request.
-  Future<Map<String, dynamic>> _fetchDLVerificationData(String requestId) async {
-    final url = Uri.parse('https://eve.idfy.com/v3/tasks?request_id=$requestId');
+  Future<Map<String, dynamic>> _fetchDLVerificationData(
+      String requestId) async {
+    final url =
+        Uri.parse('https://eve.idfy.com/v3/tasks?request_id=$requestId');
 
     while (true) {
       final response = await http.get(
@@ -147,17 +152,65 @@ class DLVerificationManager {
   }
 
   /// Parses detailed verification results.
-  Map<String, dynamic> _parseVerificationDetails(Map<String, dynamic> result) {
-    final isValid = result['source_output']?['status']?.toLowerCase() == 'valid';
-    final holderName = result['source_output']?['name'];
-    final dlNumber = result['source_output']?['id_number'];
-    final expiryDate = result['source_output']?['t_validity_to'];
+  Map<String, dynamic> _parseVerificationDetails(Map<String, dynamic>? result) {
+    String? holderName;
+    String? dlNumber;
+    String? issueDate;
+    String? expiryDate;
+    bool isValid = false;
+    String? statusMessage;
+
+    if (result != null) {
+      // Use 'source_output' from package response
+      final sourceOutput = result['source_output'];
+      if (sourceOutput != null && sourceOutput is Map) {
+        final dlStatus = sourceOutput['dl_status'];
+        final status = sourceOutput['status'];
+        holderName = sourceOutput['name'] ?? '';
+        dlNumber = sourceOutput['id_number'] ?? '';
+        issueDate = sourceOutput['date_of_issue'] ?? '';
+        expiryDate = sourceOutput['nt_validity_to'] ??
+            sourceOutput['t_validity_to'] ??
+            '';
+
+        if (dlStatus != null) {
+          isValid = dlStatus.toString().toLowerCase() == 'active' ||
+              dlStatus.toString().toLowerCase() == 'valid';
+          statusMessage = 'DL Status: $dlStatus';
+        } else if (status != null) {
+          isValid = status.toString().toLowerCase() == 'id_found' ||
+              status.toString().toLowerCase() == 'valid';
+          statusMessage = 'Status: $status';
+        }
+      } else {
+        // Fallback to top-level keys if 'source_output' doesn't exist
+        final dlStatus = result['dl_status'];
+        final dlFound = result['dl_found'];
+        final status = result['status'];
+
+        if (dlStatus != null) {
+          isValid = dlStatus.toString().toLowerCase() == 'valid' ||
+              dlStatus.toString().toLowerCase() == 'active';
+          statusMessage = 'DL Status: $dlStatus';
+        } else if (dlFound != null) {
+          isValid =
+              dlFound == true || dlFound.toString().toLowerCase() == 'true';
+          statusMessage = isValid ? 'DL Found in Records' : 'DL Not Found';
+        } else if (status != null) {
+          isValid = status.toString().toLowerCase() == 'valid' ||
+              status.toString().toLowerCase() == 'id_found';
+          statusMessage = 'Status: $status';
+        }
+      }
+    }
 
     return {
       'isValid': isValid,
       'holderName': holderName ?? '',
       'dlNumber': dlNumber ?? '',
+      'issueDate': issueDate ?? '',
       'expiryDate': expiryDate ?? '',
+      'statusMessage': statusMessage ?? '',
     };
   }
 }
